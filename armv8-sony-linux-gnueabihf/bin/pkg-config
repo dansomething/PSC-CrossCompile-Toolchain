@@ -1,0 +1,84 @@
+#!/bin/sh
+# pkg-config shim for the PSC cross-compile toolchain.
+# Mirrors the sdl-config/sdl2-config shims: resolves the sysroot from this
+# script's location so it stays correct regardless of the current directory.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SYSROOT="$(dirname "$SCRIPT_DIR")/armv8-sony-linux-gnueabihf/sysroot"
+INC="$SYSROOT/usr/include"
+LIB="$SYSROOT/usr/lib"
+
+usage() {
+	echo "Usage: $0 [--exists|--modversion|--cflags|--libs] <package>" >&2
+	exit 1
+}
+
+[ $# -ge 1 ] || usage
+
+# Collect flags and the package name (last argument).
+PKG=""
+FLAGS=""
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--exists|--modversion|--cflags|--libs)
+			FLAGS="$FLAGS $1"
+			;;
+		*)
+			PKG="$1"
+			;;
+	esac
+	shift
+done
+[ -n "$PKG" ] || usage
+
+# Translate a package name to its library flag.
+case "$PKG" in
+	zlib|z)			LIBS="-lz" ;;
+	sdl|SDL2|sdl|sdl2)	LIBS="-lSDL2" ;;
+	default)			LIBS="" ;;
+	*)				LIBS="-l$PKG" ;;
+esac
+
+exit_code=0
+for flag in $FLAGS; do
+	# Strip any leading whitespace introduced by accumulating flags.
+	flag="${flag#"${flag%%[! ]*}"}"
+	case "$flag" in
+		--exists)
+			# Report existence based on the header in the sysroot.
+			if [ -f "$INC/$PKG.h" ]; then
+				continue
+			fi
+			# Some packages expose a pkg-config .pc name that differs
+			# from the header name.
+			case "$PKG" in
+				zlib) [ -f "$INC/zlib.h" ] && continue ;;
+				sdl|sdl2|SDL2) [ -f "$INC/SDL2/SDL.h" ] && continue ;;
+			esac
+			exit_code=1
+			;;
+		--modversion)
+			case "$PKG" in
+				zlib)
+					# Pull the version from the header if present.
+					if [ -f "$INC/zlib.h" ]; then
+						grep -m1 'ZLIB_VERSION' "$INC/zlib.h" | \
+							sed -e 's/.*ZLIB_VERSION[[:space:]]*"\?\([0-9][0-9]*\)\.\([0-9][0-9]*\)\.\([0-9][0-9]*\)"\?.*/\1.\2.\3/'
+					else
+						echo "1.2.8"
+					fi
+					;;
+				*)
+					echo "1.0.0"
+					;;
+			esac
+			;;
+		--cflags)
+			echo "-I$INC"
+			;;
+		--libs)
+			echo "-L$LIB $LIBS"
+			;;
+	esac
+done
+
+exit $exit_code
