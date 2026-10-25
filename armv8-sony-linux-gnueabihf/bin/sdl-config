@@ -1,0 +1,21 @@
+#!/bin/sh
+# Wrapper for sdl-config to use cross-compiled SDL
+# Portable: resolves toolchain path from script location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SDL_PREFIX="$(dirname "$SCRIPT_DIR")/armv8-sony-linux-gnueabihf/armv8-sony-linux-gnueabihf/sysroot/usr"
+
+case "$1" in
+	--cflags)
+		echo "-I$SDL_PREFIX/include"
+		;;
+	--libs)
+		echo "-L$SDL_PREFIX/lib -lSDL"
+		;;
+	--version)
+		echo "1.2.8"
+		;;
+	*)
+		echo "Usage: $0 {--cflags|--libs|--version}" >&2
+		exit 1
+		;;
+esac
